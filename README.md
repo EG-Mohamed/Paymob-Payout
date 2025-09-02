@@ -7,9 +7,11 @@
 
 > **⚠️ IMPORTANT DISCLAIMER**
 > 
-> This is **NOT an official package** from Paymob. This package was created by the community to help Laravel developers integrate with Paymob Payout API, as there was no available package at the time of creation.
+> This is **NOT an official package** from Paymob. This package was created by me to help Laravel developers 
+> integrate with Paymob Payout API, as there was no available package at the time of creation.
 > 
-> **If Paymob releases an official Laravel package in the future, we strongly recommend using their official package instead.**
+> **If Paymob releases an official Laravel package in the future, I am strongly recommend using their official package 
+> instead.**
 > 
 > This package is provided as-is for the benefit of the developer community and is not affiliated with or endorsed by Paymob.
 
@@ -94,8 +96,11 @@ $transaction = PaymobPayout::instantCashIn(
     issuer: IssuerType::AMAN,
     amount: 250.00,
     msisdn: '01234567890',
-    fullName: 'Ahmed Mohamed',
-    nationalId: '12345678901234'
+    firstName: 'Ahmed',
+    lastName: 'Mohamed',
+    email: 'ahmed@example.com',
+    nationalId: '12345678901234',
+    clientReferenceId: '550e8400-e29b-41d4-a716-446655440000' // Optional UUID4
 );
 
 // Aman transactions return a reference number
@@ -113,11 +118,52 @@ $transaction = PaymobPayout::instantCashIn(
     amount: 500.00,
     bankCardNumber: '1234567890123456',
     bankTransactionType: BankTransactionType::CASH_TRANSFER,
-    bankCode: BankCode::CIB
+    bankCode: BankCode::CIB,
+    fullName: 'Ahmed Mohamed',
+    clientReference: 'TXN-2024-001' // Optional unique reference
 );
 
 // Bank transactions take 2 working days to finalize
 echo $transaction->disbursementStatus; // Usually 'pending' initially
+```
+
+### Field Validation
+
+The package includes comprehensive validation for all transaction fields based on the issuer type:
+
+#### Validation Rules
+
+**All Issuers:**
+- `amount` must be greater than 0
+
+**Mobile Wallets (Vodafone, Etisalat, Orange, Bank Wallet):**
+- `msisdn` is required and must be 11 digits starting with 01
+
+**Aman Transactions:**
+- `msisdn` is required (11 digits, starts with 01)
+- `firstName` is required
+- `lastName` is required  
+- `email` is required and must be valid format
+
+**Bank Card Transactions:**
+- `bankCardNumber` is required (13-19 digits)
+- `bankTransactionType` is required
+- `bankCode` is required
+- `fullName` is required
+
+#### Validation Example
+
+```php
+try {
+    $transaction = PaymobPayout::instantCashIn(
+        issuer: IssuerType::AMAN,
+        amount: 100.0,
+        msisdn: '01234567890'
+        // Missing required fields: firstName, lastName, email
+    );
+} catch (InvalidArgumentException $e) {
+    echo $e->getMessage(); // "First name is required for Aman transactions"
+}
 ```
 
 ### Transaction Management
