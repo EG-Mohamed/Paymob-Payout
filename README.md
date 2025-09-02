@@ -72,21 +72,26 @@ $token = PaymobPayout::generateToken();
 
 // Check your current budget
 $budget = PaymobPayout::budgetInquiry();
-echo $budget->currentBudget; // "Your current budget is 888.25 LE"
+echo $budget->currentBalance; // 888.25 (float)
 ```
 
-### Instant Cash-In Examples
+### Cash-In Methods
 
-#### Mobile Wallets (Vodafone, Etisalat, Orange)
+The package provides three specialized methods for different transaction types, each with specific validation:
+
+#### Mobile Wallets Cash-In
+
+For Vodafone, Etisalat, Orange, and Bank Wallet transactions:
 
 ```php
 use MohamedSaid\PaymobPayout\Facades\PaymobPayout;
 use MohamedSaid\PaymobPayout\Enums\IssuerType;
 
-$transaction = PaymobPayout::instantCashIn(
+$transaction = PaymobPayout::walletCashIn(
     issuer: IssuerType::VODAFONE,
     amount: 100.50,
-    msisdn: '01234567890'
+    msisdn: '01234567890',
+    clientReferenceId: '550e8400-e29b-41d4-a716-446655440000' // Optional UUID4
 );
 
 echo $transaction->transactionId;
@@ -94,38 +99,39 @@ echo $transaction->disbursementStatus; // 'successful', 'pending', 'failed'
 echo $transaction->statusDescription;
 ```
 
-#### Aman Transactions
+#### Aman Cash-In
+
+For Aman transactions with specific requirements:
 
 ```php
-$transaction = PaymobPayout::instantCashIn(
-    issuer: IssuerType::AMAN,
+$transaction = PaymobPayout::amanCashIn(
     amount: 250.00,
     msisdn: '01234567890',
     firstName: 'Ahmed',
     lastName: 'Mohamed',
     email: 'ahmed@example.com',
-    nationalId: '12345678901234',
-    clientReferenceId: '550e8400-e29b-41d4-a716-446655440000' // Optional UUID4
+    clientReference: 'AMAN-2024-001' // Optional unique reference
 );
 
-// Aman transactions return a reference number
+// Aman transactions return a reference number for cash pickup
 echo $transaction->referenceNumber;
 ```
 
-#### Bank Card Transactions
+#### Bank Card Cash-In
+
+For bank card transactions:
 
 ```php
 use MohamedSaid\PaymobPayout\Enums\BankTransactionType;
 use MohamedSaid\PaymobPayout\Enums\BankCode;
 
-$transaction = PaymobPayout::instantCashIn(
-    issuer: IssuerType::BANK_CARD,
+$transaction = PaymobPayout::bankCardCashIn(
     amount: 500.00,
     bankCardNumber: '1234567890123456',
     bankTransactionType: BankTransactionType::CASH_TRANSFER,
     bankCode: BankCode::CIB,
     fullName: 'Ahmed Mohamed',
-    clientReference: 'TXN-2024-001' // Optional unique reference
+    clientReference: 'BANK-2024-001' // Optional unique reference
 );
 
 // Bank transactions take 2 working days to finalize
@@ -134,37 +140,49 @@ echo $transaction->disbursementStatus; // Usually 'pending' initially
 
 ### Field Validation
 
-The package includes comprehensive validation for all transaction fields based on the issuer type:
+Each method includes comprehensive validation specific to the transaction type:
 
-#### Validation Rules
-
-**All Issuers:**
+#### walletCashIn() Validation
+- `issuer` must be VODAFONE, ETISALAT, ORANGE, or BANK_WALLET
 - `amount` must be greater than 0
+- `msisdn` must be 11 digits starting with 01
 
-**Mobile Wallets (Vodafone, Etisalat, Orange, Bank Wallet):**
-- `msisdn` is required and must be 11 digits starting with 01
+#### amanCashIn() Validation
+- `amount` must be greater than 0
+- `msisdn` must be 11 digits starting with 01
+- `firstName` is required and cannot be empty
+- `lastName` is required and cannot be empty
+- `email` must be valid email format
 
-**Aman Transactions:**
-- `msisdn` is required (11 digits, starts with 01)
-- `firstName` is required
-- `lastName` is required  
-- `email` is required and must be valid format
+#### bankCardCashIn() Validation
+- `amount` must be greater than 0
+- `bankCardNumber` must be 13-19 digits
+- `bankTransactionType` is required (enum)
+- `bankCode` is required (enum)
+- `fullName` is required and cannot be empty
 
-**Bank Card Transactions:**
-- `bankCardNumber` is required (13-19 digits)
-- `bankTransactionType` is required
-- `bankCode` is required
-- `fullName` is required
-
-#### Validation Example
+#### Validation Examples
 
 ```php
+// Wallet validation error
 try {
-    $transaction = PaymobPayout::instantCashIn(
-        issuer: IssuerType::AMAN,
+    $transaction = PaymobPayout::walletCashIn(
+        issuer: IssuerType::AMAN, // Invalid issuer for wallet method
         amount: 100.0,
         msisdn: '01234567890'
-        // Missing required fields: firstName, lastName, email
+    );
+} catch (InvalidArgumentException $e) {
+    echo $e->getMessage(); // "Invalid issuer type for wallet cash-in. Use VODAFONE, ETISALAT, ORANGE, or BANK_WALLET"
+}
+
+// Aman validation error
+try {
+    $transaction = PaymobPayout::amanCashIn(
+        amount: 100.0,
+        msisdn: '01234567890',
+        firstName: '', // Empty first name
+        lastName: 'Mohamed',
+        email: 'ahmed@example.com'
     );
 } catch (InvalidArgumentException $e) {
     echo $e->getMessage(); // "First name is required for Aman transactions"
@@ -196,7 +214,7 @@ foreach ($inquiry->results as $transaction) {
     echo $transaction['disbursement_status'];
 }
 
-// For bank transactions
+// For bank transactions (sends additional bank_transactions parameter)
 $bankInquiry = PaymobPayout::bulkTransactionInquiry(
     transactionIdsList: ['transaction-id-1', 'transaction-id-2'],
     bankTransactions: true
@@ -249,6 +267,7 @@ You can also use dependency injection instead of the facade:
 
 ```php
 use MohamedSaid\PaymobPayout\PaymobPayout;
+use MohamedSaid\PaymobPayout\Enums\IssuerType;
 
 class PaymentService
 {
@@ -256,12 +275,25 @@ class PaymentService
         private PaymobPayout $paymobPayout
     ) {}
 
-    public function processPayment(float $amount, string $phone): void
+    public function processWalletPayment(float $amount, string $phone): void
     {
-        $transaction = $this->paymobPayout->instantCashIn(
+        $transaction = $this->paymobPayout->walletCashIn(
             issuer: IssuerType::VODAFONE,
             amount: $amount,
             msisdn: $phone
+        );
+        
+        // Handle the transaction result...
+    }
+
+    public function processAmanPayment(float $amount, string $phone, string $firstName, string $lastName, string $email): void
+    {
+        $transaction = $this->paymobPayout->amanCashIn(
+            amount: $amount,
+            msisdn: $phone,
+            firstName: $firstName,
+            lastName: $lastName,
+            email: $email
         );
         
         // Handle the transaction result...
@@ -281,9 +313,9 @@ use MohamedSaid\PaymobPayout\Enums\BankCode;
 use MohamedSaid\PaymobPayout\Enums\BankTransactionType;
 
 // Get display names
-echo IssuerType::VODAFONE->__(); // "Vodafone Cash"
-echo BankCode::CIB->__(); // "Commercial International Bank"
-echo BankTransactionType::SALARY->__(); // "Salary"
+echo IssuerType::VODAFONE->getLabel(); // "Vodafone Cash"
+echo BankCode::CIB->getLabel(); // "Commercial International Bank"
+echo BankTransactionType::SALARY->getLabel(); // "Salary"
 ```
 
 #### Get All Options (with optional exclusions)
@@ -336,9 +368,9 @@ $transactionTypes = BankTransactionType::all([
 - And 25+ other banks (see BankCode enum for complete list)
 
 ### API Rate Limits
-- **Transaction Inquiry**: 5 requests per minute
-- **Budget Inquiry**: 5 requests per minute
-- **Bulk Transaction Inquiry**: 50 transactions per request
+- **Transaction Inquiry**: 5 requests per minute (POST request)
+- **Budget Inquiry**: 5 requests per minute (GET request)
+- **Bulk Transaction Inquiry**: 50 transactions per request (POST request)
 
 ## Testing
 

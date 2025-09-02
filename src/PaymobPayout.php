@@ -177,12 +177,15 @@ class PaymobPayout
         array $transactionIdsList,
         bool $bankTransactions = false
     ): BulkInquiryResponse {
-        $queryParams = http_build_query([
+        $data = [
             'transactions_ids_list' => $transactionIdsList,
-            'bank_transactions' => $bankTransactions ? 'true' : 'false',
-        ]);
+        ];
 
-        $response = $this->client->makeAuthenticatedRequest('GET', 'transaction/inquire/?'.$queryParams);
+        if ($bankTransactions) {
+            $data['bank_transactions'] = true;
+        }
+
+        $response = $this->client->makeAuthenticatedRequest('POST', 'transaction/inquire/', $data);
 
         return BulkInquiryResponse::fromArray($response->json());
     }

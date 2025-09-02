@@ -1,192 +1,147 @@
 <?php
 
-namespace MohamedSaid\PaymobPayout;
+namespace MohamedSaid\PaymobPayout\Http;
 
-use MohamedSaid\PaymobPayout\DataTransferObjects\BudgetResponse;
-use MohamedSaid\PaymobPayout\DataTransferObjects\BulkInquiryResponse;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use MohamedSaid\PaymobPayout\DataTransferObjects\TokenResponse;
-use MohamedSaid\PaymobPayout\DataTransferObjects\TransactionResponse;
-use MohamedSaid\PaymobPayout\Enums\BankCode;
-use MohamedSaid\PaymobPayout\Enums\BankTransactionType;
-use MohamedSaid\PaymobPayout\Enums\IssuerType;
-use MohamedSaid\PaymobPayout\Http\PaymobClient;
+use MohamedSaid\PaymobPayout\Exceptions\PaymobAuthenticationException;
+use MohamedSaid\PaymobPayout\Exceptions\PaymobDuplicateTransactionException;
+use MohamedSaid\PaymobPayout\Exceptions\PaymobInsufficientFundsException;
+use MohamedSaid\PaymobPayout\Exceptions\PaymobInvalidAccountException;
+use MohamedSaid\PaymobPayout\Exceptions\PaymobPayoutException;
+use MohamedSaid\PaymobPayout\Exceptions\PaymobRateLimitException;
+use MohamedSaid\PaymobPayout\Exceptions\PaymobTransactionLimitException;
 
-class PaymobPayout
+class PaymobClient
 {
-    public function __construct(
-        protected PaymobClient $client
-    ) {}
+    protected string $baseUrl;
+
+    protected array $credentials;
+
+    protected string $tokenCacheKey;
+
+    protected int $tokenTtl;
+
+    protected int $timeout;
+
+    public function __construct()
+    {
+        $config = config('paymob-payout');
+        $environment = $config['environment'];
+
+        $this->baseUrl = $config[$environment]['base_url'];
+        $this->credentials = $config['credentials'];
+        $this->tokenCacheKey = $config['cache']['token_key'];
+        $this->tokenTtl = $config['cache']['token_ttl'];
+        $this->timeout = $config['timeout'];
+    }
 
     public function generateToken(): TokenResponse
     {
-        return $this->client->generateToken();
+        $cachedToken = Cache::get($this->tokenCacheKey);
+
+        if ($cachedToken && is_array($cachedToken)) {
+            return TokenResponse::fromArray($cachedToken);
+        }
+
+        $response = Http::timeout($this->timeout)
+            ->post($this->baseUrl.'o/token/', [
+                'client_id' => $this->credentials['client_id'],
+                'client_secret' => $this->credentials['client_secret'],
+                'username' => $this->credentials['username'],
+                'password' => $this->credentials['password'],
+            ]);
+
+        $this->handleTokenResponse($response);
+
+        $tokenData = $response->json();
+        $tokenResponse = TokenResponse::fromArray($tokenData);
+
+        Cache::put($this->tokenCacheKey, $tokenData, $this->tokenTtl);
+
+        return $tokenResponse;
     }
 
-    public function instantCashIn(
-        IssuerType $issuer,
-        float $amount,
-        ?string $msisdn = null,
-        ?string $bankCardNumber = null,
-        ?BankTransactionType $bankTransactionType = null,
-        ?BankCode $bankCode = null,
-        ?string $fullName = null,
-        ?string $nationalId = null,
-        ?string $firstName = null,
-        ?string $lastName = null,
-        ?string $email = null,
-        ?string $clientReferenceId = null,
-        ?string $clientReference = null
-    ): TransactionResponse {
-        $this->validateInstantCashInFields($issuer, $amount, $msisdn, $bankCardNumber, $bankTransactionType, $bankCode, $fullName, $firstName, $lastName, $email);
-
-        $data = [
-            'issuer' => $issuer->value,
-            'amount' => $amount,
-        ];
-
-        if ($msisdn) {
-            $data['msisdn'] = $msisdn;
-        }
-
-        if ($bankCardNumber) {
-            $data['bank_card_number'] = $bankCardNumber;
-        }
-
-        if ($bankTransactionType) {
-            $data['bank_transaction_type'] = $bankTransactionType->value;
-        }
-
-        if ($bankCode) {
-            $data['bank_code'] = $bankCode->value;
-        }
-
-        if ($fullName) {
-            $data['full_name'] = $fullName;
-        }
-
-        if ($nationalId) {
-            $data['national_id'] = $nationalId;
-        }
-
-        if ($firstName) {
-            $data['first_name'] = $firstName;
-        }
-
-        if ($lastName) {
-            $data['last_name'] = $lastName;
-        }
-
-        if ($email) {
-            $data['email'] = $email;
-        }
-
-        if ($clientReferenceId) {
-            $data['client_reference_id'] = $clientReferenceId;
-        }
-
-        if ($clientReference) {
-            $data['client_reference'] = $clientReference;
-        }
-
-        $response = $this->client->makeAuthenticatedRequest('POST', 'disburse/', $data);
-
-        return TransactionResponse::fromArray($response->json());
-    }
-
-    private function validateInstantCashInFields(
-        IssuerType $issuer,
-        float $amount,
-        ?string $msisdn,
-        ?string $bankCardNumber,
-        ?BankTransactionType $bankTransactionType,
-        ?BankCode $bankCode,
-        ?string $fullName,
-        ?string $firstName,
-        ?string $lastName,
-        ?string $email
-    ): void {
-        if ($amount <= 0) {
-            throw new \InvalidArgumentException('Amount must be greater than 0');
-        }
-
-        switch ($issuer) {
-            case IssuerType::VODAFONE:
-            case IssuerType::ETISALAT:
-            case IssuerType::ORANGE:
-            case IssuerType::BANK_WALLET:
-                if (! $msisdn) {
-                    throw new \InvalidArgumentException("MSISDN is required for {$issuer->getLabel()}");
-                }
-                if (! preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
-                    throw new \InvalidArgumentException('MSISDN must be 11 digits starting with 01');
-                }
-                break;
-
-            case IssuerType::AMAN:
-                if (! $msisdn) {
-                    throw new \InvalidArgumentException('MSISDN is required for Aman transactions');
-                }
-                if (! preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
-                    throw new \InvalidArgumentException('MSISDN must be 11 digits starting with 01');
-                }
-                if (! $firstName) {
-                    throw new \InvalidArgumentException('First name is required for Aman transactions');
-                }
-                if (! $lastName) {
-                    throw new \InvalidArgumentException('Last name is required for Aman transactions');
-                }
-                if (! $email) {
-                    throw new \InvalidArgumentException('Email is required for Aman transactions');
-                }
-                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    throw new \InvalidArgumentException('Invalid email format');
-                }
-                break;
-
-            case IssuerType::BANK_CARD:
-                if (! $bankCardNumber) {
-                    throw new \InvalidArgumentException('Bank card number is required for bank card transactions');
-                }
-                if (! $bankTransactionType) {
-                    throw new \InvalidArgumentException('Bank transaction type is required for bank card transactions');
-                }
-                if (! $bankCode) {
-                    throw new \InvalidArgumentException('Bank code is required for bank card transactions');
-                }
-                if (! $fullName) {
-                    throw new \InvalidArgumentException('Full name is required for bank card transactions');
-                }
-                if (! preg_match('/^[0-9]{13,19}$/', $bankCardNumber)) {
-                    throw new \InvalidArgumentException('Bank card number must be 13-19 digits');
-                }
-                break;
-        }
-    }
-
-    public function cancelAmanTransaction(string $transactionId): TransactionResponse
+    public function refreshToken(string $refreshToken): TokenResponse
     {
-        $response = $this->client->makeAuthenticatedRequest('POST', 'transaction/aman/cancel/', [
-            'transaction_id' => $transactionId,
-        ]);
+        $response = Http::timeout($this->timeout)
+            ->post($this->baseUrl.'o/token/', [
+                'client_id' => $this->credentials['client_id'],
+                'client_secret' => $this->credentials['client_secret'],
+                'refresh_token' => $refreshToken,
+                'grant_type' => 'refresh_token',
+            ]);
 
-        return TransactionResponse::fromArray($response->json());
+        $this->handleTokenResponse($response);
+
+        $tokenData = $response->json();
+        $tokenResponse = TokenResponse::fromArray($tokenData);
+
+        Cache::put($this->tokenCacheKey, $tokenData, $this->tokenTtl);
+
+        return $tokenResponse;
     }
 
-    public function bulkTransactionInquiry(
-        array $transactionIdsList,
-        bool $bankTransactions = false
-    ): BulkInquiryResponse {
-        $response = $this->client->makeAuthenticatedRequest('POST', 'transaction/inquire/', [
-            'transactions_ids_list' => $transactionIdsList,
-        ]);
-
-        return BulkInquiryResponse::fromArray($response->json());
-    }
-
-    public function budgetInquiry(): BudgetResponse
+    public function makeAuthenticatedRequest(string $method, string $endpoint, array $data = []): Response
     {
-        $response = $this->client->makeAuthenticatedRequest('GET', 'budget/inquire/');
+        $token = $this->generateToken();
 
-        return BudgetResponse::fromArray($response->json());
+        $response = Http::timeout($this->timeout)
+            ->withHeaders([
+                'Authorization' => 'Bearer '.$token->accessToken,
+                'Content-Type' => 'application/json',
+            ])
+            ->{strtolower($method)}($this->baseUrl.$endpoint, $data);
+
+        $this->handleApiResponse($response);
+
+        return $response;
+    }
+
+    protected function handleTokenResponse(Response $response): void
+    {
+        if ($response->status() === 400) {
+            throw new PaymobAuthenticationException('Invalid credentials', '400');
+        }
+
+        if ($response->status() === 500) {
+            throw new PaymobPayoutException('Server error', '500');
+        }
+
+        if ($response->status() === 404) {
+            throw new PaymobPayoutException('Bad URL', '404');
+        }
+
+        if ($response->status() === 504) {
+            throw new PaymobPayoutException('Bad gateway', '504');
+        }
+
+        if (! $response->successful()) {
+            throw new PaymobPayoutException('Token generation failed', (string) $response->status());
+        }
+    }
+
+    protected function handleApiResponse(Response $response): void
+    {
+        $statusCode = $response->json('status_code', (string) $response->status());
+
+        match ($statusCode) {
+            '403', '1056', '4056' => throw new PaymobAuthenticationException($response->json('status_description', 'Authentication failed'), $statusCode),
+            '583', '604', '6061', '6065' => throw new PaymobTransactionLimitException($response->json('status_description', 'Transaction limit exceeded'), $statusCode),
+            '618', '4055', '000102', '000105', '000108' => throw new PaymobInvalidAccountException($response->json('status_description', 'Invalid account'), $statusCode),
+            '6005' => throw new PaymobInsufficientFundsException($response->json('status_description', 'Insufficient funds'), $statusCode),
+            '501' => throw new PaymobDuplicateTransactionException($response->json('status_description', 'Duplicate transaction'), $statusCode),
+            '429' => throw new PaymobRateLimitException($response->json('status_description', 'Rate limit exceeded'), $statusCode),
+            default => null
+        };
+
+        if (! $response->successful() && ! in_array($statusCode, ['200', '8000', '8111', '8222', '8333'])) {
+            throw new PaymobPayoutException(
+                $response->json('status_description', 'API request failed'),
+                $statusCode
+            );
+        }
     }
 }
