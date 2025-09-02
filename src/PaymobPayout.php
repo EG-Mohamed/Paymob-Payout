@@ -22,63 +22,25 @@ class PaymobPayout
         return $this->client->generateToken();
     }
 
-    public function instantCashIn(
+    public function walletCashIn(
         IssuerType $issuer,
         float $amount,
-        ?string $msisdn = null,
-        ?string $bankCardNumber = null,
-        ?BankTransactionType $bankTransactionType = null,
-        ?BankCode $bankCode = null,
-        ?string $fullName = null,
-        ?string $nationalId = null,
-        ?string $firstName = null,
-        ?string $lastName = null,
-        ?string $email = null,
+        string $msisdn,
         ?string $clientReferenceId = null,
         ?string $clientReference = null
     ): TransactionResponse {
-        $this->validateInstantCashInFields($issuer, $amount, $msisdn, $bankCardNumber, $bankTransactionType, $bankCode, $fullName, $firstName, $lastName, $email);
+        if (! in_array($issuer, [IssuerType::VODAFONE, IssuerType::ETISALAT, IssuerType::ORANGE, IssuerType::BANK_WALLET])) {
+            throw new \InvalidArgumentException('Invalid issuer type for wallet cash-in. Use VODAFONE, ETISALAT, ORANGE, or BANK_WALLET');
+        }
+
+        $this->validateAmount($amount);
+        $this->validateMsisdn($msisdn);
 
         $data = [
             'issuer' => $issuer->value,
             'amount' => $amount,
+            'msisdn' => $msisdn,
         ];
-
-        if ($msisdn) {
-            $data['msisdn'] = $msisdn;
-        }
-
-        if ($bankCardNumber) {
-            $data['bank_card_number'] = $bankCardNumber;
-        }
-
-        if ($bankTransactionType) {
-            $data['bank_transaction_type'] = $bankTransactionType->value;
-        }
-
-        if ($bankCode) {
-            $data['bank_code'] = $bankCode->value;
-        }
-
-        if ($fullName) {
-            $data['full_name'] = $fullName;
-        }
-
-        if ($nationalId) {
-            $data['national_id'] = $nationalId;
-        }
-
-        if ($firstName) {
-            $data['first_name'] = $firstName;
-        }
-
-        if ($lastName) {
-            $data['last_name'] = $lastName;
-        }
-
-        if ($email) {
-            $data['email'] = $email;
-        }
 
         if ($clientReferenceId) {
             $data['client_reference_id'] = $clientReferenceId;
@@ -93,73 +55,112 @@ class PaymobPayout
         return TransactionResponse::fromArray($response->json());
     }
 
-    private function validateInstantCashInFields(
-        IssuerType $issuer,
+    public function amanCashIn(
         float $amount,
-        ?string $msisdn,
-        ?string $bankCardNumber,
-        ?BankTransactionType $bankTransactionType,
-        ?BankCode $bankCode,
-        ?string $fullName,
-        ?string $firstName,
-        ?string $lastName,
-        ?string $email
-    ): void {
+        string $msisdn,
+        string $firstName,
+        string $lastName,
+        string $email,
+        ?string $clientReferenceId = null,
+        ?string $clientReference = null
+    ): TransactionResponse {
+        $this->validateAmount($amount);
+        $this->validateMsisdn($msisdn);
+        $this->validateEmail($email);
+
+        if (empty($firstName)) {
+            throw new \InvalidArgumentException('First name is required for Aman transactions');
+        }
+
+        if (empty($lastName)) {
+            throw new \InvalidArgumentException('Last name is required for Aman transactions');
+        }
+
+        $data = [
+            'issuer' => IssuerType::AMAN->value,
+            'amount' => $amount,
+            'msisdn' => $msisdn,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => $email,
+        ];
+
+        if ($clientReferenceId) {
+            $data['client_reference_id'] = $clientReferenceId;
+        }
+
+        if ($clientReference) {
+            $data['client_reference'] = $clientReference;
+        }
+
+        $response = $this->client->makeAuthenticatedRequest('POST', 'disburse/', $data);
+
+        return TransactionResponse::fromArray($response->json());
+    }
+
+    public function bankCardCashIn(
+        float $amount,
+        string $bankCardNumber,
+        BankTransactionType $bankTransactionType,
+        BankCode $bankCode,
+        string $fullName,
+        ?string $clientReferenceId = null,
+        ?string $clientReference = null
+    ): TransactionResponse {
+        $this->validateAmount($amount);
+        $this->validateBankCardNumber($bankCardNumber);
+
+        if (empty($fullName)) {
+            throw new \InvalidArgumentException('Full name is required for bank card transactions');
+        }
+
+        $data = [
+            'issuer' => IssuerType::BANK_CARD->value,
+            'amount' => $amount,
+            'bank_card_number' => $bankCardNumber,
+            'bank_transaction_type' => $bankTransactionType->value,
+            'bank_code' => $bankCode->value,
+            'full_name' => $fullName,
+        ];
+
+        if ($clientReferenceId) {
+            $data['client_reference_id'] = $clientReferenceId;
+        }
+
+        if ($clientReference) {
+            $data['client_reference'] = $clientReference;
+        }
+
+        $response = $this->client->makeAuthenticatedRequest('POST', 'disburse/', $data);
+
+        return TransactionResponse::fromArray($response->json());
+    }
+
+    private function validateAmount(float $amount): void
+    {
         if ($amount <= 0) {
             throw new \InvalidArgumentException('Amount must be greater than 0');
         }
+    }
 
-        switch ($issuer) {
-            case IssuerType::VODAFONE:
-            case IssuerType::ETISALAT:
-            case IssuerType::ORANGE:
-            case IssuerType::BANK_WALLET:
-                if (! $msisdn) {
-                    throw new \InvalidArgumentException("MSISDN is required for {$issuer->getLabel()}");
-                }
-                if (! preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
-                    throw new \InvalidArgumentException('MSISDN must be 11 digits starting with 01');
-                }
-                break;
+    private function validateMsisdn(string $msisdn): void
+    {
+        if (! preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
+            throw new \InvalidArgumentException('MSISDN must be 11 digits starting with 01');
+        }
+    }
 
-            case IssuerType::AMAN:
-                if (! $msisdn) {
-                    throw new \InvalidArgumentException('MSISDN is required for Aman transactions');
-                }
-                if (! preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
-                    throw new \InvalidArgumentException('MSISDN must be 11 digits starting with 01');
-                }
-                if (! $firstName) {
-                    throw new \InvalidArgumentException('First name is required for Aman transactions');
-                }
-                if (! $lastName) {
-                    throw new \InvalidArgumentException('Last name is required for Aman transactions');
-                }
-                if (! $email) {
-                    throw new \InvalidArgumentException('Email is required for Aman transactions');
-                }
-                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    throw new \InvalidArgumentException('Invalid email format');
-                }
-                break;
+    private function validateEmail(string $email): void
+    {
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('Invalid email format');
+        }
+    }
 
-            case IssuerType::BANK_CARD:
-                if (! $bankCardNumber) {
-                    throw new \InvalidArgumentException('Bank card number is required for bank card transactions');
-                }
-                if (! $bankTransactionType) {
-                    throw new \InvalidArgumentException('Bank transaction type is required for bank card transactions');
-                }
-                if (! $bankCode) {
-                    throw new \InvalidArgumentException('Bank code is required for bank card transactions');
-                }
-                if (! $fullName) {
-                    throw new \InvalidArgumentException('Full name is required for bank card transactions');
-                }
-                if (! preg_match('/^[0-9]{13,19}$/', $bankCardNumber)) {
-                    throw new \InvalidArgumentException('Bank card number must be 13-19 digits');
-                }
-                break;
+    private function validateBankCardNumber(string $bankCardNumber): void
+    {
+        if (! preg_match('/^[0-9]{13,19}$/', $bankCardNumber)) {
+            throw new \InvalidArgumentException('Bank card number must be 13-19 digits');
         }
     }
 
