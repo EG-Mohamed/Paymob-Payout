@@ -9,8 +9,7 @@ readonly class BulkInquiryResponse
         public ?string $next,
         public ?string $previous,
         public array $results
-    ) {
-    }
+    ) {}
 
     public static function fromArray(array $data): self
     {

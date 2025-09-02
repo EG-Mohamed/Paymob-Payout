@@ -15,8 +15,7 @@ class PaymobPayout
 {
     public function __construct(
         protected PaymobClient $client
-    ) {
-    }
+    ) {}
 
     public function generateToken(): TokenResponse
     {
@@ -115,49 +114,49 @@ class PaymobPayout
             case IssuerType::ETISALAT:
             case IssuerType::ORANGE:
             case IssuerType::BANK_WALLET:
-                if (!$msisdn) {
+                if (! $msisdn) {
                     throw new \InvalidArgumentException("MSISDN is required for {$issuer->getLabel()}");
                 }
-                if (!preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
+                if (! preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
                     throw new \InvalidArgumentException('MSISDN must be 11 digits starting with 01');
                 }
                 break;
 
             case IssuerType::AMAN:
-                if (!$msisdn) {
+                if (! $msisdn) {
                     throw new \InvalidArgumentException('MSISDN is required for Aman transactions');
                 }
-                if (!preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
+                if (! preg_match('/^01[0-2][0-9]{8}$/', $msisdn)) {
                     throw new \InvalidArgumentException('MSISDN must be 11 digits starting with 01');
                 }
-                if (!$firstName) {
+                if (! $firstName) {
                     throw new \InvalidArgumentException('First name is required for Aman transactions');
                 }
-                if (!$lastName) {
+                if (! $lastName) {
                     throw new \InvalidArgumentException('Last name is required for Aman transactions');
                 }
-                if (!$email) {
+                if (! $email) {
                     throw new \InvalidArgumentException('Email is required for Aman transactions');
                 }
-                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     throw new \InvalidArgumentException('Invalid email format');
                 }
                 break;
 
             case IssuerType::BANK_CARD:
-                if (!$bankCardNumber) {
+                if (! $bankCardNumber) {
                     throw new \InvalidArgumentException('Bank card number is required for bank card transactions');
                 }
-                if (!$bankTransactionType) {
+                if (! $bankTransactionType) {
                     throw new \InvalidArgumentException('Bank transaction type is required for bank card transactions');
                 }
-                if (!$bankCode) {
+                if (! $bankCode) {
                     throw new \InvalidArgumentException('Bank code is required for bank card transactions');
                 }
-                if (!$fullName) {
+                if (! $fullName) {
                     throw new \InvalidArgumentException('Full name is required for bank card transactions');
                 }
-                if (!preg_match('/^[0-9]{13,19}$/', $bankCardNumber)) {
+                if (! preg_match('/^[0-9]{13,19}$/', $bankCardNumber)) {
                     throw new \InvalidArgumentException('Bank card number must be 13-19 digits');
                 }
                 break;
@@ -182,7 +181,7 @@ class PaymobPayout
             'bank_transactions' => $bankTransactions ? 'true' : 'false',
         ]);
 
-        $response = $this->client->makeAuthenticatedRequest('GET', 'transaction/inquire/?' . $queryParams);
+        $response = $this->client->makeAuthenticatedRequest('GET', 'transaction/inquire/?'.$queryParams);
 
         return BulkInquiryResponse::fromArray($response->json());
     }

@@ -2,6 +2,4 @@
 
 namespace MohamedSaid\PaymobPayout\Exceptions;
 
-class PaymobDuplicateTransactionException extends PaymobPayoutException
-{
-}
+class PaymobDuplicateTransactionException extends PaymobPayoutException {}

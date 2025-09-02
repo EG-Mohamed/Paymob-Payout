@@ -8,8 +8,7 @@ readonly class BudgetResponse
         public string $currentBudget,
         public ?string $statusDescription = null,
         public ?string $statusCode = null
-    ) {
-    }
+    ) {}
 
     public static function fromArray(array $data): self
     {

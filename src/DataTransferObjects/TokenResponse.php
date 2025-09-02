@@ -10,8 +10,7 @@ readonly class TokenResponse
         public string $expiresIn,
         public string $scope,
         public string $tokenType
-    ) {
-    }
+    ) {}
 
     public static function fromArray(array $data): self
     {

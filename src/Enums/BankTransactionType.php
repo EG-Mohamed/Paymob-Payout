@@ -12,10 +12,10 @@ enum BankTransactionType: string
     public function getLabel(): string
     {
         return match ($this) {
-            self::SALARY =>__( 'Salary'),
-            self::CREDIT_CARD =>__( 'Credit Card'),
-            self::PREPAID_CARD =>__( 'Prepaid Card'),
-            self::CASH_TRANSFER =>__( 'Cash Transfer'),
+            self::SALARY => __('Salary'),
+            self::CREDIT_CARD => __('Credit Card'),
+            self::PREPAID_CARD => __('Prepaid Card'),
+            self::CASH_TRANSFER => __('Cash Transfer'),
         };
     }
 
@@ -27,6 +27,6 @@ enum BankTransactionType: string
             return $cases;
         }
 
-        return array_filter($cases, fn($case) => !in_array($case, $except));
+        return array_filter($cases, fn ($case) => ! in_array($case, $except));
     }
 }
