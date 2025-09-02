@@ -31,6 +31,6 @@ enum IssuerType: string
             return $cases;
         }
 
-        return array_filter($cases, fn ($case) => ! in_array($case, $except));
+        return array_filter($cases, fn ($case): bool => ! in_array($case, $except));
     }
 }
