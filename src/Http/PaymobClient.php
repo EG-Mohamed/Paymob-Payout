@@ -52,6 +52,7 @@ class PaymobClient
                 'client_secret' => $this->credentials['client_secret'],
                 'username' => $this->credentials['username'],
                 'password' => $this->credentials['password'],
+                'grant_type' => 'password',
             ]);
 
         $this->handleTokenResponse($response);
