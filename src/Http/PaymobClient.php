@@ -149,15 +149,15 @@ class PaymobClient
     private function getStatusDescription(Response $response): string
     {
         $description = $response->json('status_description');
-        
+
         if (is_string($description)) {
             return $description;
         }
-        
+
         if (is_array($description)) {
             return json_encode($description);
         }
-        
+
         return (string) $description;
     }
 }
