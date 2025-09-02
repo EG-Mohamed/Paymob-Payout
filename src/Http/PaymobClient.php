@@ -125,23 +125,39 @@ class PaymobClient
 
     protected function handleApiResponse(Response $response): void
     {
-        $statusCode = $response->json('status_code', (string) $response->status());
+        $statusCode = (string) $response->json('status_code', $response->status());
+        $statusDescription = $this->getStatusDescription($response);
 
         match ($statusCode) {
-            '403', '1056', '4056' => throw new PaymobAuthenticationException($response->json('status_description', 'Authentication failed'), $statusCode),
-            '583', '604', '6061', '6065' => throw new PaymobTransactionLimitException($response->json('status_description', 'Transaction limit exceeded'), $statusCode),
-            '618', '4055', '000102', '000105', '000108' => throw new PaymobInvalidAccountException($response->json('status_description', 'Invalid account'), $statusCode),
-            '6005' => throw new PaymobInsufficientFundsException($response->json('status_description', 'Insufficient funds'), $statusCode),
-            '501' => throw new PaymobDuplicateTransactionException($response->json('status_description', 'Duplicate transaction'), $statusCode),
-            '429' => throw new PaymobRateLimitException($response->json('status_description', 'Rate limit exceeded'), $statusCode),
+            '403', '1056', '4056' => throw new PaymobAuthenticationException($statusDescription ?: 'Authentication failed', $statusCode),
+            '583', '604', '6061', '6065' => throw new PaymobTransactionLimitException($statusDescription ?: 'Transaction limit exceeded', $statusCode),
+            '618', '4055', '000102', '000105', '000108' => throw new PaymobInvalidAccountException($statusDescription ?: 'Invalid account', $statusCode),
+            '6005' => throw new PaymobInsufficientFundsException($statusDescription ?: 'Insufficient funds', $statusCode),
+            '501' => throw new PaymobDuplicateTransactionException($statusDescription ?: 'Duplicate transaction', $statusCode),
+            '429' => throw new PaymobRateLimitException($statusDescription ?: 'Rate limit exceeded', $statusCode),
             default => null
         };
 
         if (! $response->successful() && ! in_array($statusCode, ['200', '8000', '8111', '8222', '8333'])) {
             throw new PaymobPayoutException(
-                $response->json('status_description', 'API request failed'),
+                $statusDescription ?: 'API request failed',
                 $statusCode
             );
         }
+    }
+
+    private function getStatusDescription(Response $response): string
+    {
+        $description = $response->json('status_description');
+        
+        if (is_string($description)) {
+            return $description;
+        }
+        
+        if (is_array($description)) {
+            return json_encode($description);
+        }
+        
+        return (string) $description;
     }
 }
