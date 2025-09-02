@@ -11,8 +11,7 @@ readonly class TransactionResponse
         public string $statusCode,
         public ?string $referenceNumber = null,
         public ?array $additionalData = []
-    ) {
-    }
+    ) {}
 
     public static function fromArray(array $data): self
     {

@@ -2,6 +2,4 @@
 
 namespace MohamedSaid\PaymobPayout\Exceptions;
 
-class PaymobRateLimitException extends PaymobPayoutException
-{
-}
+class PaymobRateLimitException extends PaymobPayoutException {}

@@ -2,6 +2,4 @@
 
 namespace MohamedSaid\PaymobPayout\Exceptions;
 
-class PaymobInvalidAccountException extends PaymobPayoutException
-{
-}
+class PaymobInvalidAccountException extends PaymobPayoutException {}

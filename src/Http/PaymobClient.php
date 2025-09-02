@@ -3,8 +3,8 @@
 namespace MohamedSaid\PaymobPayout\Http;
 
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use MohamedSaid\PaymobPayout\DataTransferObjects\TokenResponse;
 use MohamedSaid\PaymobPayout\Exceptions\PaymobAuthenticationException;
 use MohamedSaid\PaymobPayout\Exceptions\PaymobDuplicateTransactionException;
@@ -17,16 +17,20 @@ use MohamedSaid\PaymobPayout\Exceptions\PaymobTransactionLimitException;
 class PaymobClient
 {
     protected string $baseUrl;
+
     protected array $credentials;
+
     protected string $tokenCacheKey;
+
     protected int $tokenTtl;
+
     protected int $timeout;
 
     public function __construct()
     {
         $config = config('paymob-payout');
         $environment = $config['environment'];
-        
+
         $this->baseUrl = $config[$environment]['base_url'];
         $this->credentials = $config['credentials'];
         $this->tokenCacheKey = $config['cache']['token_key'];
@@ -37,13 +41,13 @@ class PaymobClient
     public function generateToken(): TokenResponse
     {
         $cachedToken = Cache::get($this->tokenCacheKey);
-        
+
         if ($cachedToken && is_array($cachedToken)) {
             return TokenResponse::fromArray($cachedToken);
         }
 
         $response = Http::timeout($this->timeout)
-            ->post($this->baseUrl . 'o/token/', [
+            ->post($this->baseUrl.'o/token/', [
                 'client_id' => $this->credentials['client_id'],
                 'client_secret' => $this->credentials['client_secret'],
                 'username' => $this->credentials['username'],
@@ -63,7 +67,7 @@ class PaymobClient
     public function refreshToken(string $refreshToken): TokenResponse
     {
         $response = Http::timeout($this->timeout)
-            ->post($this->baseUrl . 'o/token/', [
+            ->post($this->baseUrl.'o/token/', [
                 'client_id' => $this->credentials['client_id'],
                 'client_secret' => $this->credentials['client_secret'],
                 'refresh_token' => $refreshToken,
@@ -86,10 +90,10 @@ class PaymobClient
 
         $response = Http::timeout($this->timeout)
             ->withHeaders([
-                'Authorization' => 'Bearer ' . $token->accessToken,
+                'Authorization' => 'Bearer '.$token->accessToken,
                 'Content-Type' => 'application/json',
             ])
-            ->{strtolower($method)}($this->baseUrl . $endpoint, $data);
+            ->{strtolower($method)}($this->baseUrl.$endpoint, $data);
 
         $this->handleApiResponse($response);
 
@@ -114,7 +118,7 @@ class PaymobClient
             throw new PaymobPayoutException('Bad gateway', '504');
         }
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new PaymobPayoutException('Token generation failed', (string) $response->status());
         }
     }
@@ -122,7 +126,7 @@ class PaymobClient
     protected function handleApiResponse(Response $response): void
     {
         $statusCode = $response->json('status_code', (string) $response->status());
-        
+
         match ($statusCode) {
             '403', '1056', '4056' => throw new PaymobAuthenticationException($response->json('status_description', 'Authentication failed'), $statusCode),
             '583', '604', '6061', '6065' => throw new PaymobTransactionLimitException($response->json('status_description', 'Transaction limit exceeded'), $statusCode),
@@ -133,7 +137,7 @@ class PaymobClient
             default => null
         };
 
-        if (!$response->successful() && !in_array($statusCode, ['200', '8000', '8111', '8222', '8333'])) {
+        if (! $response->successful() && ! in_array($statusCode, ['200', '8000', '8111', '8222', '8333'])) {
             throw new PaymobPayoutException(
                 $response->json('status_description', 'API request failed'),
                 $statusCode
