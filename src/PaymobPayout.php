@@ -6,6 +6,7 @@ use MohamedSaid\PaymobPayout\DataTransferObjects\BudgetResponse;
 use MohamedSaid\PaymobPayout\DataTransferObjects\BulkInquiryResponse;
 use MohamedSaid\PaymobPayout\DataTransferObjects\TokenResponse;
 use MohamedSaid\PaymobPayout\DataTransferObjects\TransactionResponse;
+use MohamedSaid\PaymobPayout\Enums\BankCode;
 use MohamedSaid\PaymobPayout\Enums\BankTransactionType;
 use MohamedSaid\PaymobPayout\Enums\IssuerType;
 use MohamedSaid\PaymobPayout\Http\PaymobClient;
@@ -28,6 +29,7 @@ class PaymobPayout
         ?string $msisdn = null,
         ?string $bankCardNumber = null,
         ?BankTransactionType $bankTransactionType = null,
+        ?BankCode $bankCode = null,
         ?string $fullName = null,
         ?string $nationalId = null
     ): TransactionResponse {
@@ -46,6 +48,10 @@ class PaymobPayout
 
         if ($bankTransactionType) {
             $data['bank_transaction_type'] = $bankTransactionType->value;
+        }
+
+        if ($bankCode) {
+            $data['bank_code'] = $bankCode->value;
         }
 
         if ($fullName) {

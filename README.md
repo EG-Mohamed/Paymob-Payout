@@ -106,12 +106,14 @@ echo $transaction->referenceNumber;
 
 ```php
 use MohamedSaid\PaymobPayout\Enums\BankTransactionType;
+use MohamedSaid\PaymobPayout\Enums\BankCode;
 
 $transaction = PaymobPayout::instantCashIn(
     issuer: IssuerType::BANK_CARD,
     amount: 500.00,
     bankCardNumber: '1234567890123456',
-    bankTransactionType: BankTransactionType::P2M
+    bankTransactionType: BankTransactionType::CASH_TRANSFER,
+    bankCode: BankCode::CIB
 );
 
 // Bank transactions take 2 working days to finalize
@@ -216,6 +218,47 @@ class PaymentService
 }
 ```
 
+### Enum Helper Methods
+
+All enums include helpful methods for retrieving human-readable names and filtering options:
+
+#### Get Human-Readable Names
+
+```php
+use MohamedSaid\PaymobPayout\Enums\IssuerType;
+use MohamedSaid\PaymobPayout\Enums\BankCode;
+use MohamedSaid\PaymobPayout\Enums\BankTransactionType;
+
+// Get display names
+echo IssuerType::VODAFONE->__(); // "Vodafone Cash"
+echo BankCode::CIB->__(); // "Commercial International Bank"
+echo BankTransactionType::SALARY->__(); // "Salary"
+```
+
+#### Get All Options (with optional exclusions)
+
+```php
+// Get all issuers
+$allIssuers = IssuerType::all();
+
+// Get all issuers except bank-related ones
+$walletIssuers = IssuerType::all([
+    IssuerType::BANK_WALLET,
+    IssuerType::BANK_CARD
+]);
+
+// Get all bank codes except specific ones
+$availableBanks = BankCode::all([
+    BankCode::HSBC,
+    BankCode::SCB
+]);
+
+// Get all transaction types except salary
+$transactionTypes = BankTransactionType::all([
+    BankTransactionType::SALARY
+]);
+```
+
 ## Supported Features
 
 ### Issuers
@@ -226,9 +269,20 @@ class PaymentService
 - **Bank Wallet** - Bank wallet transactions
 - **Bank Card** - Direct bank card disbursements (2 working days)
 
-### Transaction Types
-- **P2M** - Person to Merchant
-- **P2BankAcc** - Person to Bank Account
+### Bank Transaction Types
+- **SALARY** - For concurrent or repeated payments
+- **CREDIT_CARD** - For credit card payments  
+- **PREPAID_CARD** - For prepaid cards and Meeza cards payments
+- **CASH_TRANSFER** - For bank accounts, debit cards etc.
+
+### Supported Bank Codes
+- **CIB** - Commercial International Bank
+- **NBE** - National Bank of Egypt
+- **MISR** - Banque Misr
+- **ALEX** - Bank of Alexandria
+- **QNB** - QNB ALAHLI
+- **HSBC** - HSBC Bank Egypt
+- And 25+ other banks (see BankCode enum for complete list)
 
 ### API Rate Limits
 - **Transaction Inquiry**: 5 requests per minute
