@@ -1,12 +1,12 @@
 <?php
 
-namespace VendorName\Skeleton\Commands;
+namespace MohamedSaid\PaymobPayout\Commands;
 
 use Illuminate\Console\Command;
 
-class SkeletonCommand extends Command
+class PaymobPayoutCommand extends Command
 {
-    public $signature = 'skeleton';
+    public $signature = 'paymob-payout';
 
     public $description = 'My command';
 
