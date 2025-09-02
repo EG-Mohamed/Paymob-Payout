@@ -24,6 +24,11 @@ A comprehensive Laravel wrapper for the Paymob Payout API that provides easy-to-
 - **Budget Inquiry** - Check current balance
 - **Comprehensive Exception Handling** - Specific exceptions for different error scenarios
 
+## Requirements
+
+- **PHP**: ^8.2
+- **Laravel**: ^10.0 || ^11.0 || ^12.0
+
 ## Installation
 
 You can install the package via composer:
